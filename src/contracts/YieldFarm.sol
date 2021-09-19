@@ -4,9 +4,9 @@ pragma solidity >=0.8.0 <0.9.0;
 import "openzeppelin-solidity/contracts/utils/math/SafeMath.sol";
 
 interface DaiToken{
-    function transfer(address dst, uint wad) external returns (bool);
-    function transferFrom(address from, address to, uint wad) external returns (bool);
-    function balanceOf(address user) external view returns (uint);
+    function transfer(address _to, uint _value) external returns (bool);
+    function transferFrom(address _from, address _to, uint _value) external returns (bool);
+    function balanceOf(address _user) external view returns (uint);
     function approve(address _spender, uint256 _value) external returns (bool);
 }
 
@@ -33,6 +33,7 @@ contract YieldFarm {
     // deposit dai
     function depositDai(address _token, uint256 _amount) public {
         require(_token == DAI, "You may only deposit Dai");
+        daiToken.transferFrom(msg.sender, address(this), _amount);
         balanceOf[msg.sender] = balanceOf[msg.sender].add(_amount);
         emit Deposit(msg.sender,_amount,balanceOf[msg.sender]);
     }
