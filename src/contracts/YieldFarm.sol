@@ -24,7 +24,7 @@ contract YieldFarm {
 
     event Deposit(address staker, uint256 amount, uint256 balance);
     event Withdrawl(address staker, uint256 amount, uint256 balance);
-    event Rebalance(address staker, uint256 amount, uint256 balance);
+    event Rebalance(address staker, uint256 balance);
 
     constructor(DaiToken _daiToken) public {
         daiToken = _daiToken;
@@ -33,6 +33,7 @@ contract YieldFarm {
     // deposit dai
     function depositDai(address _token, uint256 _amount) public {
         require(_token == DAI, "You may only deposit Dai");
+        require(daiToken.balanceOf(msg.sender) >= _amount, "You must have enough tokens to send");
         daiToken.transferFrom(msg.sender, address(this), _amount);
         balanceOf[msg.sender] = balanceOf[msg.sender].add(_amount);
         emit Deposit(msg.sender,_amount,balanceOf[msg.sender]);

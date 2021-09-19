@@ -1,5 +1,5 @@
 const { default: web3 } = require('web3')
-import { DAI_ADDRESS, EVM_REVERT, DAI_CONTRACT,largeDAIAddress, ether} from './helper'
+import { DAI_ADDRESS, EVM_REVERT, DAI_CONTRACT,largeDAIAddress, ether, ETHER_ADDRESS} from './helper'
 
 const { USER_ADDRESS } = process.env;
 
@@ -18,11 +18,11 @@ contract('YieldFarm',([user]) => {
 
         //transfer dai to test user account
         await DAI_CONTRACT().methods
-        .transfer(user, ether(1))
+        .transfer(user, ether(10))
         .send({from: largeDAIAddress})
 
         await DAI_CONTRACT().methods
-        .approve(yieldFarm.address, ether(1))
+        .approve(yieldFarm.address, ether(10))
         .send( {from: user} )
 
     })
@@ -39,13 +39,36 @@ contract('YieldFarm',([user]) => {
     })
 
     describe('deposit Dai', () => {
+        let balance
+        let amount
+        let result
+
         describe('success', () => {
-            let balance
-            let result
+
+            beforeEach( async () => {
+                amount = ether(.1)
+                result = await yieldFarm.depositDai(DAI_ADDRESS,amount, {from: user})
+            })
+
             it('deposits dai to yieldfarm', async () => {
-                await yieldFarm.depositDai(DAI_ADDRESS,ether(.1), {from: user})
                 balance =  await yieldFarm.balanceOf(user)
-                balance.toString().should.equal(ether(.1))
+                balance.toString().should.equal(amount)
+            })
+            it('emits a Deposit event', async () => {
+                const log = result.logs[0]
+                log.event.should.equal('Deposit')
+                const event = log.args
+                event.staker.toString().should.equal(user,'user address is correct')
+                event.amount.toString().should.equal(amount.toString(),'value is correct')
+                event.balance.toString().should.equal(amount.toString(),'value is correct')
+            })
+        })
+        describe('failure', () => {
+            it('reject tokens that are not dai', async () => {
+                await yieldFarm.depositDai(ETHER_ADDRESS,amount, {from: user}).should.be.rejectedWith(EVM_REVERT)
+            })
+            it('insufficient dai amount', async () => {
+                await yieldFarm.depositDai(DAI_ADDRESS,ether(100), {from: user}).should.be.rejectedWith(EVM_REVERT)
             })
         })
     })

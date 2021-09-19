@@ -7,6 +7,8 @@ export const EVM_REVERT = 'VM Exception while processing transaction: revert'
 
 export const largeDAIAddress = "0xC564EE9f21Ed8A2d8E7e76c085740d5e4c5FaFbE"
 
+export const ETHER_ADDRESS = '0x0000000000000000000000000000000000000000'
+
 export const DAI_CONTRACT = () => {
     const daiAbi = require('./DAI.js')
 
