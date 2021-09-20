@@ -3,9 +3,11 @@ const web3 = new Web3('http://localhost:8545')
 
 export const DAI_ADDRESS = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
 
+export const CDAI_ADDRESS = '0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643'
+
 export const EVM_REVERT = 'VM Exception while processing transaction: revert'
 
-export const largeDAIAddress = "0xC564EE9f21Ed8A2d8E7e76c085740d5e4c5FaFbE"
+export const LARGE_DAI_ADDRESS = '0xC564EE9f21Ed8A2d8E7e76c085740d5e4c5FaFbE'
 
 export const ETHER_ADDRESS = '0x0000000000000000000000000000000000000000'
 

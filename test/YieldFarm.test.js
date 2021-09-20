@@ -1,5 +1,6 @@
 const { default: web3 } = require('web3')
-import { DAI_ADDRESS, EVM_REVERT, DAI_CONTRACT,largeDAIAddress, ether, ETHER_ADDRESS} from './helper'
+
+import { DAI_ADDRESS, EVM_REVERT, DAI_CONTRACT,LARGE_DAI_ADDRESS, ether, ETHER_ADDRESS, CDAI_ADDRESS} from './helper'
 
 const { USER_ADDRESS } = process.env;
 
@@ -14,7 +15,7 @@ contract('YieldFarm',([user]) => {
 
     beforeEach(async () => {
         //deploy farm
-        yieldFarm = await YieldFarm.new(DAI_ADDRESS)
+        yieldFarm = await YieldFarm.new(DAI_ADDRESS,CDAI_ADDRESS)
 
         //transfer dai to test user account
         await DAI_CONTRACT().methods
@@ -24,7 +25,6 @@ contract('YieldFarm',([user]) => {
         await DAI_CONTRACT().methods
         .approve(yieldFarm.address, ether(10))
         .send( {from: user} )
-
     })
 
     describe('deployment', () => {
@@ -51,7 +51,7 @@ contract('YieldFarm',([user]) => {
             })
 
             it('deposits dai to yieldfarm', async () => {
-                balance =  await yieldFarm.balanceOf(user)
+                balance =  await yieldFarm.getBalanceForUser(user)
                 balance.toString().should.equal(amount)
             })
             it('emits a Deposit event', async () => {
