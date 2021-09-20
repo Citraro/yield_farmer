@@ -20,7 +20,7 @@ contract('YieldFarm',([user]) => {
         //transfer dai to test user account
         await DAI_CONTRACT().methods
         .transfer(user, ether(10))
-        .send({from: largeDAIAddress})
+        .send({from: LARGE_DAI_ADDRESS})
 
         await DAI_CONTRACT().methods
         .approve(yieldFarm.address, ether(10))
