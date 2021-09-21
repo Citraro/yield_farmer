@@ -16,6 +16,8 @@ interface CErc20 {
     function supplyRatePerBlock() external returns (uint256);
     function redeem(uint) external returns (uint);
     function redeemUnderlying(uint) external returns (uint);
+    function balanceOfUnderlying(address account) external returns (uint);
+    function balanceOf(address account) external returns (uint);
 }
 
 
@@ -36,10 +38,10 @@ contract YieldFarm {
 
     address constant DAI = address(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     address constant cDAI = address(0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643); // compound Dai reward
-    
-    mapping(address => uint256) public balanceOfCompound;
-    mapping(address => uint256) public balanceOfAave;
+
     mapping(address => Provider) public usersProvider;
+
+    mapping(address => uint256) public balanceOf;
 
     event Deposit(address staker, uint256 amount, uint256 balance);
     event Withdrawl(address staker, uint256 amount, uint256 balance);
@@ -51,15 +53,15 @@ contract YieldFarm {
     }
 
     // deposit dai
-    function depositDai(address _token, uint256 _amount) public {
+    function depositDai(address _token, uint256 _amount) public{
         require(_token == DAI, "You may only deposit Dai");
         require(daiToken.balanceOf(msg.sender) >= _amount, "You must have enough tokens to send");
-        daiToken.transferFrom(msg.sender, address(this), _amount);
+        require(daiToken.transferFrom(msg.sender, address(this), _amount));
+        // Approve transfer on the Dai contract
+        daiToken.approve(cDAI, _amount);
+        balanceOf[msg.sender] = balanceOf[msg.sender].add(_amount);
 
-        //TODO: decide which has highest yield
         depositDaiToCompound(_amount);
-
-        emit Deposit(msg.sender,_amount,_amount);
     }
 
     function getCompoundPercentage() internal returns (uint256){
@@ -67,31 +69,38 @@ contract YieldFarm {
     }
 
     function depositDaiToCompound(uint256 _amount) internal {
-        daiToken.approve(cDAI,_amount);
-
-        //TODO: TRACK MINTED TOKENS ON COMPOUND 
-        uint256 mintAmount = cDaiToken.mint(_amount);
-        balanceOfCompound[msg.sender] = mintAmount;
+        // Mint cDai
+        assert(cDaiToken.mint(_amount) == 0); // 0 = success 
         usersProvider[msg.sender] = compound;
+        emit Deposit(msg.sender,_amount,balanceOf[msg.sender]);
     }
 
-    function redeemFromCompound() internal{
-        cDaiToken.redeem(balanceOfCompound[msg.sender]);
-    }
-
-    function getBalanceForUser(address _user) public view returns(uint256){
-        uint256 balance;
-        if(usersProvider[_user] == aave){
-            balance = balanceOfAave[msg.sender];
-        }else if (usersProvider[_user] == compound){
-            balance = balanceOfCompound[msg.sender];
-        }
-        return balance;
+    function redeemFromCompound(uint256 _amount) internal{
+        require(cDaiToken.redeemUnderlying(_amount) == 0, "redeem failed");
     }
 
     // withdrawl Dai
+    function withdrawlDai(address _token, uint256 _amount) public {
+        require(_token == DAI, "You may only deposit Dai");
+        require(balanceOf[msg.sender] >= _amount, "You must have enough tokens to send");
+        redeemFromCompound(_amount);
+
+        require(daiToken.transferFrom(address(this), msg.sender, _amount));
+        emit Withdrawl(msg.sender, _amount, balanceOf[msg.sender]);
+    }
 
     // rebalance dai
 
+    //check for best rate
+    function getBestRate() internal returns (Provider) {
+        uint256 interestRate;
+        Provider bestRateProvider;
+
+        //TODO: Add aave 
+        bestRateProvider = Provider(1);
+        interestRate = cDaiToken.supplyRatePerBlock();
+
+        return bestRateProvider;
+    }
 
 }

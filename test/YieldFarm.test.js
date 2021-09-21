@@ -51,8 +51,8 @@ contract('YieldFarm',([user]) => {
             })
 
             it('deposits dai to yieldfarm', async () => {
-                balance =  await yieldFarm.getBalanceForUser(user)
-                balance.toString().should.equal(amount)
+                balance =  await yieldFarm.balanceOf(user)
+                balance.toString().should.equal(amount.toString())
             })
             it('emits a Deposit event', async () => {
                 const log = result.logs[0]
@@ -61,6 +61,7 @@ contract('YieldFarm',([user]) => {
                 event.staker.toString().should.equal(user,'user address is correct')
                 event.amount.toString().should.equal(amount.toString(),'value is correct')
                 event.balance.toString().should.equal(amount.toString(),'value is correct')
+
             })
         })
         describe('failure', () => {
@@ -71,6 +72,10 @@ contract('YieldFarm',([user]) => {
                 await yieldFarm.depositDai(DAI_ADDRESS,ether(100), {from: user}).should.be.rejectedWith(EVM_REVERT)
             })
         })
+    })
+
+    describe('withdrawl Dai', () => {
+
     })
 
 })
