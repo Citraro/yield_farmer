@@ -3,31 +3,6 @@ pragma solidity >=0.8.0 <0.9.0;
 
 import "openzeppelin-solidity/contracts/utils/math/SafeMath.sol";
 
-  struct ReserveData {
-    ReserveConfigurationMap configuration;
-    uint128 liquidityIndex;
-    uint128 variableBorrowIndex;
-    uint128 currentLiquidityRate;
-    uint128 currentVariableBorrowRate;
-    uint128 currentStableBorrowRate;
-    uint40 lastUpdateTimestamp;
-    address aTokenAddress;
-    address stableDebtTokenAddress;
-    address variableDebtTokenAddress;
-    address interestRateStrategyAddress;
-    uint8 id;
-  }
-    struct ReserveConfigurationMap {
-    uint256 data;
-  }
-
-interface DaiToken{
-    function transfer(address _to, uint _value) external returns (bool);
-    function transferFrom(address _from, address _to, uint _value) external returns (bool);
-    function balanceOf(address _user) external view returns (uint);
-    function approve(address _spender, uint256 _value) external returns (bool);
-}
-
 interface CErc20 { // Compound Erc20
     function mint(uint256) external returns (uint256);
     function exchangeRateCurrent() external returns (uint256);
@@ -36,22 +11,28 @@ interface CErc20 { // Compound Erc20
     function redeemUnderlying(uint) external returns (uint);
     function balanceOfUnderlying(address account) external returns (uint);
     function balanceOf(address account) external returns (uint);
+    function approve(address _spender, uint256 _value) external returns (bool);
+
 }
 
 interface AErc20 { // Aave Erc20
     function mint(address user,uint256 amount,uint256 index) external returns (bool);
     function transferUnderlyingTo(address user, uint256 amount) external returns (uint256);
+    function balanceOfUnderlying(address account) external returns (uint);
+    function balanceOf(address account) external returns (uint);
+    function approve(address _spender, uint256 _value) external returns (bool);
 }
 
-interface LendingPool { // Aave Lending pool
-    function deposit(address asset, uint256 amount, address onBehalfOf,uint16 referralCode) external;
-    function withdraw(address asset, uint256 amount, address to) external returns (uint256);
-    function getReserveData(address asset) external returns(ReserveData memory);
-}
+import {ILendingPool} from "./AaveInterfaces/ILendingPool.sol";
+import {DataTypes} from "./AaveInterfaces/DataTypes.sol";
+import {ILendingPoolAddressesProvider} from "./AaveInterfaces/ILendingPoolAddressesProvider.sol";
+import {IERC20} from "./IERC20.sol";
+
 
 
 
 contract YieldFarm {
+    event MyLog(string, uint256);
     using SafeMath for uint256;
 
     enum Provider {
@@ -59,10 +40,11 @@ contract YieldFarm {
         Compound
     }
 
-    DaiToken public daiToken;
+    IERC20 public daiToken;
     CErc20 public cDaiToken;
     AErc20 public aDaiToken;
-    LendingPool public Lending_Pool;
+    ILendingPool public Lending_Pool;
+    ILendingPoolAddressesProvider addressProvider;
 
 
     Provider private aave = Provider(0);
@@ -83,18 +65,18 @@ contract YieldFarm {
     event Withdrawl(address staker, uint256 amount, uint256 balance);
     event Rebalance(address staker, uint256 balance);
 
-    constructor(DaiToken _daiToken, CErc20 _cDaiToken, AErc20 _aDaiToken, LendingPool _lendingPool) public {
+    constructor(IERC20 _daiToken, CErc20 _cDaiToken, AErc20 _aDaiToken, ILendingPool _lendingPool, ILendingPoolAddressesProvider _addProvider) public {
         daiToken = _daiToken;
         cDaiToken = _cDaiToken;
         aDaiToken = _aDaiToken;
-        Lending_Pool = _lendingPool;
+        addressProvider = _addProvider;
     }
 
     // deposit dai
     function depositDai(address _token, uint256 _amount) public{
         require(_token == DAI, "You may only deposit Dai");
         require(daiToken.balanceOf(msg.sender) >= _amount, "You must have enough tokens to send");
-        require(daiToken.transferFrom(msg.sender, address(this), _amount));
+        require(daiToken.transferFrom(msg.sender, address(this), _amount), "Deposit Failed");
 
         balanceOf[msg.sender] = balanceOf[msg.sender].add(_amount);
 
@@ -114,18 +96,24 @@ contract YieldFarm {
     }
 
     function depositDaiToAave(uint256 _amount) internal {
-        daiToken.approve(address(Lending_Pool),_amount);
-        Lending_Pool.deposit(DAI,_amount,msg.sender,0); // 0 = no referalcode 
+        Lending_Pool= ILendingPool(addressProvider.getLendingPool());
+        daiToken.approve(address(Lending_Pool), _amount);
+        Lending_Pool.deposit(address(DAI),_amount,address(this),0); // 0 = no referalcode
         usersProvider[msg.sender] = aave;
         emit Deposit(msg.sender,_amount,balanceOf[msg.sender],aave);
     }
 
     function redeemFromCompound(uint256 _amount) internal{
-        require(cDaiToken.redeemUnderlying(_amount) == 0, "redeem failed");
+        require(cDaiToken.redeem(_amount) == 0, "redeem failed");
+        require(daiToken.transferFrom(address(this), msg.sender, _amount),"Transfer failed from Compound");
     }
 
     function reedeemFromAave(uint _amount) internal {
-        Lending_Pool.withdraw(DAI, _amount, msg.sender);
+        Lending_Pool= ILendingPool(addressProvider.getLendingPool());
+        aDaiToken.approve(address(Lending_Pool), type(uint256).max);
+        uint256 aaveBalance = aDaiToken.balanceOf(address(this));
+        require(aaveBalance > _amount, "Aave balance lower than request withdrawl");
+        require(Lending_Pool.withdraw(address(DAI), _amount, msg.sender) == 0,"Withdraw from Aave failed");
     }
 
     // withdrawl Dai
@@ -138,8 +126,6 @@ contract YieldFarm {
             redeemFromCompound(_amount);
         }
 
-
-        require(daiToken.transferFrom(address(this), msg.sender, _amount));
         balanceOf[msg.sender] = balanceOf[msg.sender].sub(_amount);
         emit Withdrawl(msg.sender, _amount, balanceOf[msg.sender]);
     }
@@ -149,13 +135,13 @@ contract YieldFarm {
     //check for best rate
     function getBestRate() internal returns (Provider) {
         Provider bestRateProvider;
-        ReserveData memory returnData;
+        DataTypes.ReserveData memory returnData;
 
         bestRateProvider = Provider(0); // aave by default
 
         //get AAVE data
         returnData = Lending_Pool.getReserveData(DAI);
-        if (returnData.currentLiquidityRate < cDaiToken.supplyRatePerBlock()){
+        if ((returnData.currentLiquidityRate / 1e25) < (((((cDaiToken.supplyRatePerBlock() / 1e18 * 5760) + 1) ** 365) - 1) * 100)){
             bestRateProvider = Provider(1);
         }
 

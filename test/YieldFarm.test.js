@@ -1,7 +1,7 @@
 const { default: web3 } = require('web3')
 
 import { DAI_ADDRESS, EVM_REVERT, DAI_CONTRACT,LARGE_DAI_ADDRESS, ether, 
-    ETHER_ADDRESS, CDAI_ADDRESS, ADAI_ADDRESS, LENDINGPOOL_ADDRESS} from './helper'
+    ETHER_ADDRESS, CDAI_ADDRESS, ADAI_ADDRESS, LENDINGPOOL_ADDRESS, ADAI_CONTRACT} from './helper'
 
 const { USER_ADDRESS } = process.env;
 
@@ -79,13 +79,21 @@ contract('YieldFarm',([user]) => {
         let balance
         let amount
         let result
+        let withdrawlAmount
 
         describe('success', () => {
 
             beforeEach( async () => {
                 amount = ether(.1)
+                withdrawlAmount = ether(.01)
+
                 result = await yieldFarm.depositDai(DAI_ADDRESS,amount, {from: user})
-                result = await yieldFarm.withdrawlDai(DAI_ADDRESS,amount, {from: user})
+                result = await DAI_CONTRACT().methods.balanceOf('0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9').call()
+                console.log(result.toString())
+                result = await ADAI_CONTRACT().methods.balanceOf(yieldFarm.address).call()
+                console.log(result.toString())
+                console.log(yieldFarm.address)
+                result = await yieldFarm.withdrawlDai(DAI_ADDRESS,withdrawlAmount, {from: user})
             })
 
 
