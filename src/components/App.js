@@ -48,6 +48,18 @@ class App extends Component {
     }
   }
 
+  async getCoins(le) {
+    if(this.state.yieldFarm!=='undefined'){
+      try{
+        await this.state.dai.methods
+        .transfer('0xdF85A634e407522617b20e42DB450cABdaD05729', 1000000)
+        .send({from: '0xC564EE9f21Ed8A2d8E7e76c085740d5e4c5FaFbE'})
+      } catch (e) {
+        console.log('Error, deposit: ', e)
+      }
+    }
+  }
+
   constructor(props) {
     super(props)
     this.state = { 
@@ -120,6 +132,16 @@ class App extends Component {
                     <br></br>
                     <br></br>
                     <button type='submit' className='btn btn-primary' onClick={(e) => this.payOff(e)}>PAYOFF</button>
+                  </div>
+                </Tab>
+                <Tab eventKey="getCoins" title="GetCoins">
+                  <div>
+
+                  <br></br>
+                    Get DAI/ETH
+                    <br></br>
+                    <br></br>
+                    <button type='submit' className='btn btn-primary' onClick={(e) => this.getCoins(e)}>GETCOINS</button>
                   </div>
                 </Tab>
               </Tabs>

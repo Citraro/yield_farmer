@@ -21,6 +21,8 @@ interface AErc20 { // Aave Erc20
     function balanceOfUnderlying(address account) external returns (uint);
     function balanceOf(address account) external returns (uint);
     function approve(address _spender, uint256 _value) external returns (bool);
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+
 }
 
 import {ILendingPool} from "./AaveInterfaces/ILendingPool.sol";
@@ -55,6 +57,7 @@ contract YieldFarm {
     address constant DAI = address(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     address constant cDAI = address(0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643); // compound Dai reward
     address constant LendingPoolAddress = address(0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9);
+    address constant LendingPoolProviderAddress = address(0xB53C1a33016B2DC2fF3653530bfF1848a515c8c5);
     address constant aDAI = address(0x028171bCA77440897B824Ca71D1c56caC55b68A3);
 
     mapping(address => Provider) public usersProvider;
@@ -69,14 +72,14 @@ contract YieldFarm {
         daiToken = _daiToken;
         cDaiToken = _cDaiToken;
         aDaiToken = _aDaiToken;
-        addressProvider = _addProvider;
+        addressProvider = ILendingPoolAddressesProvider(_addProvider);
+        Lending_Pool = ILendingPool(addressProvider.getLendingPool());
     }
 
     // deposit dai
     function depositDai(address _token, uint256 _amount) public{
         require(_token == DAI, "You may only deposit Dai");
         require(daiToken.balanceOf(msg.sender) >= _amount, "You must have enough tokens to send");
-        require(daiToken.transferFrom(msg.sender, address(this), _amount), "Deposit Failed");
 
         balanceOf[msg.sender] = balanceOf[msg.sender].add(_amount);
 
@@ -96,9 +99,14 @@ contract YieldFarm {
     }
 
     function depositDaiToAave(uint256 _amount) internal {
-        Lending_Pool= ILendingPool(addressProvider.getLendingPool());
-        daiToken.approve(address(Lending_Pool), _amount);
-        Lending_Pool.deposit(address(DAI),_amount,address(this),0); // 0 = no referalcode
+        Lending_Pool = ILendingPool(addressProvider.getLendingPool());
+        daiToken.approve(msg.sender,_amount);
+        daiToken.approve(address(this), _amount);
+        require(daiToken.transferFrom(msg.sender, address(this), _amount), "Deposit Failed");
+        if (IERC20(daiToken).allowance(address(this), address(Lending_Pool)) == 0) {
+            daiToken.approve(address(Lending_Pool), _amount);
+        }
+        Lending_Pool.deposit(DAI, _amount, msg.sender, 0);
         usersProvider[msg.sender] = aave;
         emit Deposit(msg.sender,_amount,balanceOf[msg.sender],aave);
     }
@@ -109,11 +117,11 @@ contract YieldFarm {
     }
 
     function reedeemFromAave(uint _amount) internal {
-        Lending_Pool= ILendingPool(addressProvider.getLendingPool());
-        aDaiToken.approve(address(Lending_Pool), type(uint256).max);
-        uint256 aaveBalance = aDaiToken.balanceOf(address(this));
-        require(aaveBalance > _amount, "Aave balance lower than request withdrawl");
-        require(Lending_Pool.withdraw(address(DAI), _amount, msg.sender) == 0,"Withdraw from Aave failed");
+        Lending_Pool = ILendingPool(addressProvider.getLendingPool());
+        aDaiToken.approve(msg.sender, _amount);
+        aDaiToken.approve(address(this),_amount);
+        aDaiToken.transferFrom(msg.sender, address(this), _amount);
+        require(Lending_Pool.withdraw(DAI, _amount, msg.sender) == 0, "Withdraw from Aave failed");
     }
 
     // withdrawl Dai

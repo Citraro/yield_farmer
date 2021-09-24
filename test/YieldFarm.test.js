@@ -1,7 +1,8 @@
 const { default: web3 } = require('web3')
 
 import { DAI_ADDRESS, EVM_REVERT, DAI_CONTRACT,LARGE_DAI_ADDRESS, ether, 
-    ETHER_ADDRESS, CDAI_ADDRESS, ADAI_ADDRESS, LENDINGPOOL_ADDRESS, ADAI_CONTRACT} from './helper'
+    ETHER_ADDRESS, CDAI_ADDRESS, ADAI_ADDRESS, LENDINGPOOL_ADDRESS, ADAI_CONTRACT,
+    LENDINGPOOLPROVIDER_ADRESS} from './helper'
 
 const { USER_ADDRESS } = process.env;
 
@@ -16,7 +17,7 @@ contract('YieldFarm',([user]) => {
 
     beforeEach(async () => {
         //deploy farm
-        yieldFarm = await YieldFarm.new(DAI_ADDRESS,CDAI_ADDRESS, ADAI_ADDRESS, LENDINGPOOL_ADDRESS)
+        yieldFarm = await YieldFarm.new(DAI_ADDRESS,CDAI_ADDRESS, ADAI_ADDRESS, LENDINGPOOL_ADDRESS,LENDINGPOOLPROVIDER_ADRESS)
 
         //transfer dai to test user account
         await DAI_CONTRACT().methods
@@ -33,7 +34,7 @@ contract('YieldFarm',([user]) => {
             let result = await yieldFarm.name()
             result.should.equal('Dai Yield Farm')
         })
-        it('eth address is correct', async () => {
+        it('dai address is correct', async () => {
             let result = await yieldFarm.daiToken()
             result.should.equal(DAI_ADDRESS)
         })
@@ -70,7 +71,7 @@ contract('YieldFarm',([user]) => {
                 await yieldFarm.depositDai(ETHER_ADDRESS,amount, {from: user}).should.be.rejectedWith(EVM_REVERT)
             })
             it('insufficient dai amount', async () => {
-                await yieldFarm.depositDai(DAI_ADDRESS,ether(100), {from: user}).should.be.rejectedWith(EVM_REVERT)
+                await yieldFarm.depositDai(DAI_ADDRESS,ether(1000), {from: user}).should.be.rejectedWith(EVM_REVERT)
             })
         })
     })
@@ -85,15 +86,10 @@ contract('YieldFarm',([user]) => {
 
             beforeEach( async () => {
                 amount = ether(.1)
-                withdrawlAmount = ether(.01)
+                withdrawlAmount = ether(.001)
 
                 result = await yieldFarm.depositDai(DAI_ADDRESS,amount, {from: user})
-                result = await DAI_CONTRACT().methods.balanceOf('0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9').call()
-                console.log(result.toString())
-                result = await ADAI_CONTRACT().methods.balanceOf(yieldFarm.address).call()
-                console.log(result.toString())
-                console.log(yieldFarm.address)
-                result = await yieldFarm.withdrawlDai(DAI_ADDRESS,withdrawlAmount, {from: user})
+                result = await yieldFarm.withdrawlDai(DAI_ADDRESS,amount, {from: user})
             })
 
 
